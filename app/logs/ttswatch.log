@@ -1,0 +1,4 @@
+import logging
+
+logging.basicConfig(filename="logs/ttswatch.log", level=logging.INFO)
+logging.info("Status pulled successfully")
