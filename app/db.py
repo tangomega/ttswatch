@@ -68,6 +68,7 @@ def save_device_status(hostname, model, version, serial):
 
 def get_recent_snapshots(limit=20):
     conn = get_connection()
+    conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
 
     cursor.execute("""
@@ -81,3 +82,19 @@ def get_recent_snapshots(limit=20):
     conn.close()
     return rows
 
+def get_device_status():
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        SELECT hostname, model, version, serial, last_updated
+        FROM device_status
+        ORDER BY id DESC
+        LIMIT 1
+    """)
+
+    row = cursor.fetchone()
+    conn.close()
+
+    return row
