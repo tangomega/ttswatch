@@ -1,42 +1,32 @@
 import schedule
-import urllib3
 import time
+import urllib3
 import os
 from dotenv import load_dotenv
 from fortigate import get_status, get_resources
+from db import save_snapshot
 
+load_dotenv()
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-# Load environment variables
-load_dotenv()
-POLL_INTERVAL = int(os.getenv("POLL_INTERVAL", 60))
+POLL_INTERVAL = int(os.getenv("POLL_INTERVAL", 30))
+
 
 def job():
     print("\n--- TTSWatch Snapshot ---")
-    
+
     try:
-        status = get_status()        # /system/status
-        resources = get_resources()  # /system/performance/status
+        status = get_status()
+        resources = get_resources()
 
         if not status or not resources:
             print("Failed to retrieve data")
             return
 
-        # System info
         s = status.get("results", {})
         r = resources.get("results", {})
 
-        # Uptime
-        uptime_seconds = s.get("uptime")
-        if uptime_seconds is not None:
-            hours = uptime_seconds // 3600
-            minutes = (uptime_seconds % 3600) // 60
-            seconds = uptime_seconds % 60
-            uptime_str = f"{hours}h {minutes}m {seconds}s"
-        else:
-            uptime_str = "N/A"
-
-        # CPU & memory
+        # ---- CPU / MEMORY EXTRACTION ----
         cpu_data = r.get("cpu") or r.get("cpu_usage")
         mem_data = r.get("mem") or r.get("memory") or r.get("memory_usage")
 
@@ -49,32 +39,40 @@ def job():
         if isinstance(mem_data, list) and len(mem_data) > 0:
             mem_current = mem_data[0].get("current")
 
-        # Snapshot
-        snapshot = {
-            "hostname": s.get("hostname"),
-            "model": s.get("model"),
-            "version": status.get("version"),
-            "build": status.get("build"),
-            "uptime": uptime_str,
-            "cpu_percent": cpu_current,
-            "memory_percent": mem_current,
-        }
+        # ---- UPTIME EXTRACTION ----
+        uptime = (
+            s.get("uptime")
+            or s.get("system_uptime")
+            or s.get("uptime_sec")
+        )
 
-        # Print snapshot
-        for key, value in snapshot.items():
-            print(f"{key}: {value}")
+        # ---- SNAPSHOT PRINT ----
+        print(f"hostname: {s.get('hostname')}")
+        print(f"model: {s.get('model')}")
+        print(f"version: {status.get('version')}")
+        print(f"build: {status.get('build')}")
+        print(f"uptime: {uptime if uptime else 'N/A'}")
+        print(f"cpu_percent: {cpu_current}")
+        print(f"memory_percent: {mem_current}")
+
+        # ---- SAVE TO DATABASE ----
+        if cpu_current is not None and mem_current is not None:
+            save_snapshot(cpu_current, mem_current)
+            print("Snapshot saved to DB")
 
     except Exception as e:
         print("Job Error:", e)
 
-# Schedule polling
+
+# ---- SCHEDULER SETUP ----
 schedule.every(POLL_INTERVAL).seconds.do(job)
 
 print(f"TTSWatch started. Polling every {POLL_INTERVAL} seconds.")
 
-# Optional immediate first run
+# Immediate first run
 job()
 
+# Infinite loop
 while True:
     schedule.run_pending()
     time.sleep(1)
