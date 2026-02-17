@@ -1,10 +1,18 @@
 import sqlite3
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 
 # Absolute path to database (one level above /app)
 DB_PATH = os.path.join(os.path.dirname(__file__), "..", "ttswatch.db")
 
+def cleanup_old_snapshots(days=7):
+    """Delete snapshots older than `days` days."""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cutoff = datetime.now() - timedelta(days=days)
+    cursor.execute("DELETE FROM snapshots WHERE timestamp < ?", (cutoff,))
+    conn.commit()
+    conn.close()
 
 def get_connection():
     return sqlite3.connect(DB_PATH)
@@ -58,29 +66,27 @@ def save_device_status(hostname, model, version, serial):
     cursor = conn.cursor()
 
     cursor.execute("""
-        INSERT INTO device_status (hostname, model, version, serial, last_updated)
-        VALUES (?, ?, ?, ?, ?)
-    """, (hostname, model, version, serial, datetime.utcnow().isoformat()))
+        INSERT INTO device_status (hostname, model, version, serial)
+        VALUES (?, ?, ?, ?)
+    """, (hostname, model, version, serial.isoformat()))
 
     conn.commit()
     conn.close()
 
 
 def get_recent_snapshots(limit=20):
-    conn = get_connection()
-    conn.row_factory = sqlite3.Row
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row  # <-- this makes rows behave like dicts
     cursor = conn.cursor()
-
-    cursor.execute("""
-        SELECT timestamp, cpu_percent, memory_percent
-        FROM snapshots
-        ORDER BY id DESC
-        LIMIT ?
-    """, (limit,))
-
+    cursor.execute(
+        "SELECT * FROM snapshots ORDER BY timestamp DESC LIMIT ?",
+        (limit,)
+    )
     rows = cursor.fetchall()
     conn.close()
     return rows
+
+
 
 def get_device_status():
     conn = sqlite3.connect(DB_PATH)
@@ -88,13 +94,34 @@ def get_device_status():
     cursor = conn.cursor()
 
     cursor.execute("""
-        SELECT hostname, model, version, serial, last_updated
+        SELECT hostname, model, version, serial
         FROM device_status
-        ORDER BY id DESC
+        ORDER BY last_updated DESC
         LIMIT 1
     """)
 
     row = cursor.fetchone()
     conn.close()
 
-    return row
+    if row:
+        return {
+            "hostname": row["hostname"],
+            "model": row["model"],
+            "version": row["version"],
+            "serial": row["serial"]
+        }
+
+    return None
+
+def save_device_status(hostname, model, version, serial):
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        INSERT INTO device_status (hostname, model, version, serial)
+        VALUES (?, ?, ?, ?)
+    """, (hostname, model, version, serial))
+
+    conn.commit()
+    conn.close()
+

@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>TTSWatch Dashboard</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        table { border-collapse: collapse; width: 100%; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: center; }
+        th { background-color: #f2f2f2; }
+        h1 { margin-bottom: 5px; }
+        p { margin-top: 0; }
+    </style>
+</head>
+<body>
+    <h1>{{ device.hostname }} ({{ device.model }})</h1>
+    <p>Version: {{ device.version }} | Serial: {{ device.serial }}</p>
+
+    <h2>Recent Snapshots</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Timestamp</th>
+                <th>CPU %</th>
+                <th>Memory %</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in snapshots %}
+            <tr>
+                <td>{{ row.timestamp }}</td>
+                <td>{{ row.cpu_percent }}</td>
+                <td>{{ row.memory_percent }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</body>
+</html>
+

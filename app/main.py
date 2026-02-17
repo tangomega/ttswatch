@@ -4,7 +4,7 @@ import urllib3
 import os
 from dotenv import load_dotenv
 from fortigate import get_status, get_resources
-from db import save_snapshot
+from db import save_snapshot, cleanup_old_snapshots, save_device_status
 
 load_dotenv()
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -38,6 +38,13 @@ def job():
 
         if isinstance(mem_data, list) and len(mem_data) > 0:
             mem_current = mem_data[0].get("current")
+        
+        save_device_status(
+        hostname=s.get("hostname"),
+        model=s.get("model"),
+        version=status.get("version"),
+        serial=status.get("serial")
+        )
 
         # ---- UPTIME EXTRACTION ----
         uptime = (
@@ -59,6 +66,7 @@ def job():
         if cpu_current is not None and mem_current is not None:
             save_snapshot(cpu_current, mem_current)
             print("Snapshot saved to DB")
+            cleanup_old_snapshots(days=7)
 
     except Exception as e:
         print("Job Error:", e)
